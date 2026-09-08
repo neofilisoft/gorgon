@@ -1,0 +1,73 @@
+// bits.wyr - Pure bitwise operations and byte manipulations in Wyrm
+
+fn bit_xor(a, b) {
+    var res = 0
+    var bit = 1
+    var p = 0
+    do {
+        if p >= 8 { break }
+        var da = int(a / bit)
+        var db = int(b / bit)
+        var ba = da % 2
+        var bb = db % 2
+        if ba != bb {
+            res = res + bit
+        }
+        bit = bit * 2
+        p = p + 1
+    } til p >= 8
+    return res
+}
+
+fn bit_and(a, b) {
+    var res = 0
+    var bit = 1
+    var p = 0
+    do {
+        if p >= 8 { break }
+        var da = int(a / bit)
+        var db = int(b / bit)
+        var ba = da % 2
+        var bb = db % 2
+        if ba == 1 and bb == 1 {
+            res = res + bit
+        }
+        bit = bit * 2
+        p = p + 1
+    } til p >= 8
+    return res
+}
+
+fn bit_or(a, b) {
+    var res = 0
+    var bit = 1
+    var p = 0
+    do {
+        if p >= 8 { break }
+        var da = int(a / bit)
+        var db = int(b / bit)
+        var ba = da % 2
+        var bb = db % 2
+        if ba == 1 or bb == 1 {
+            res = res + bit
+        }
+        bit = bit * 2
+        p = p + 1
+    } til p >= 8
+    return res
+}
+
+fn xor_byte_arrays(arr1, arr2) {
+    var res = []
+    var l1 = len(arr1)
+    var l2 = len(arr2)
+    var m = l1
+    if l2 < m { m = l2 }
+    var i = 0
+    do {
+        if i >= m { break }
+        append(res, bit_xor(arr1[i], arr2[i]))
+        i = i + 1
+    } til i >= m
+    return res
+}

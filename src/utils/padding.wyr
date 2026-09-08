@@ -1,0 +1,54 @@
+// padding.wyr - PKCS#7 padding and validation in Wyrm
+
+fn pkcs7_pad(data, block_size) {
+    var l = len(data)
+    var pad_len = block_size - (l % block_size)
+    var res = []
+    var i = 0
+    do {
+        if i >= l { break }
+        append(res, data[i])
+        i = i + 1
+    } til i >= l
+
+    var p = 0
+    do {
+        if p >= pad_len { break }
+        append(res, pad_len)
+        p = p + 1
+    } til p >= pad_len
+
+    return res
+}
+
+fn pkcs7_unpad(data, block_size) {
+    var l = len(data)
+    if l == 0 or (l % block_size) != 0 {
+        return null
+    }
+
+    var pad_val = data[l - 1]
+    if pad_val == 0 or pad_val > block_size or pad_val > l {
+        return null
+    }
+
+    var i = l - pad_val
+    do {
+        if i >= l { break }
+        if data[i] != pad_val {
+            return null
+        }
+        i = i + 1
+    } til i >= l
+
+    var res = []
+    var k = 0
+    var end_idx = l - pad_val
+    do {
+        if k >= end_idx { break }
+        append(res, data[k])
+        k = k + 1
+    } til k >= end_idx
+
+    return res
+}

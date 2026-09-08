@@ -1,0 +1,4 @@
+// mod.wyr - Main package entry point for Gorgon in Wyrm
+
+use src.types;
+use src.gorgon;

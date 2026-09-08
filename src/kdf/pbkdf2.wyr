@@ -1,0 +1,59 @@
+// pbkdf2.wyr - Key derivation and salt mutation in Wyrm
+
+use src.utils.bits;
+
+fn derive_secondary_salt(salt) {
+    var out_salt = []
+    var l = len(salt)
+    var i = 0
+    do {
+        if i >= 16 { break }
+        var in_idx = 15 - i
+        var in_val = 0
+        if in_idx < l {
+            in_val = salt[in_idx]
+        }
+        var mask = (90 + i) % 256
+        append(out_salt, bit_xor(in_val, mask))
+        i = i + 1
+    } til i >= 16
+    return out_salt
+}
+
+/// Key derivation generating 32-byte key from password, salt, and iterations
+fn derive_key(password, salt, iterations) {
+    var p_bytes = to_bytes(password)
+    var p_len = len(p_bytes)
+    var s_len = len(salt)
+
+    // Initial state vector of 32 bytes (256 bits)
+    var state = []
+    var i = 0
+    do {
+        if i >= 32 { break }
+        var pv = p_bytes[i % p_len]
+        var sv = salt[i % s_len]
+        append(state, bit_xor(pv, sv))
+        i = i + 1
+    } til i >= 32
+
+    // Iterative mixing rounds
+    var it = 0
+    do {
+        if it >= iterations { break }
+        var prev = (it * 37 + 101) % 256
+        var j = 0
+        do {
+            if j >= 32 { break }
+            var pv = p_bytes[(it + j) % p_len]
+            var mix = (state[j] + pv + prev + it) % 256
+            var xor_val = bit_xor(state[(j + 1) % 32], mix)
+            state[j] = xor_val
+            prev = xor_val
+            j = j + 1
+        } til j >= 32
+        it = it + 1
+    } til it >= iterations
+
+    return state
+}

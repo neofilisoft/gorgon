@@ -1,0 +1,17 @@
+// types.wyr - Data structures and constants for Gorgon library in Wyrm
+
+struct GorgonMetadata {
+    salt_hex: string,
+    iv_primary_hex: string,
+    iv_secondary_hex: string,
+    iterations: number
+}
+
+struct GorgonPackage {
+    cipher_hex: string,
+    salt_hex: string,
+    iv_primary_hex: string,
+    iv_secondary_hex: string,
+    iterations: number,
+    original_size: number
+}

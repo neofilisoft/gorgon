@@ -1,0 +1,45 @@
+// hex.wyr - Hexadecimal encoding and decoding utilities in Wyrm
+
+fn bytes_to_hex(bytes) {
+    var hex_chars = "0123456789abcdef"
+    var res = ""
+    var l = len(bytes)
+    var i = 0
+    do {
+        if i >= l { break }
+        var b = bytes[i]
+        var hi = int(b / 16) % 16
+        var lo = b % 16
+        res = res + char_at(hex_chars, hi) + char_at(hex_chars, lo)
+        i = i + 1
+    } til i >= l
+    return res
+}
+
+fn hex_nibble(c) {
+    var v = ord_val(c)
+    if v >= 48 and v <= 57 {
+        return v - 48
+    }
+    if v >= 97 and v <= 102 {
+        return v - 97 + 10
+    }
+    if v >= 65 and v <= 70 {
+        return v - 65 + 10
+    }
+    return 0
+}
+
+fn hex_to_bytes(hex_str) {
+    var bytes = []
+    var l = len(hex_str)
+    var i = 0
+    do {
+        if i + 1 >= l { break }
+        var hi = hex_nibble(char_at(hex_str, i))
+        var lo = hex_nibble(char_at(hex_str, i + 1))
+        append(bytes, (hi * 16) + lo)
+        i = i + 2
+    } til i >= l
+    return bytes
+}

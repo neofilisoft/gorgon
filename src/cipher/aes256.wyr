@@ -1,0 +1,236 @@
+// aes256.wyr - Pure Wyrm implementation of AES-256 block cipher and CBC mode
+use src.utils.bits;
+use src.utils.padding;
+
+// Standard AES S-Box (256 bytes)
+var g_aes_sbox = null
+
+fn init_aes_sbox() {
+    if g_aes_sbox != null { return true }
+    g_aes_sbox = [99, 124, 119, 123, 242, 107, 111, 197, 48, 1, 103, 43, 254, 215, 171, 118, 202, 130, 201, 125, 250, 89, 71, 240, 173, 212, 162, 175, 156, 164, 114, 192, 183, 253, 147, 38, 54, 63, 247, 204, 52, 165, 229, 241, 113, 216, 49, 21, 4, 199, 35, 195, 24, 150, 5, 154, 7, 18, 128, 226, 235, 39, 178, 117, 9, 131, 44, 26, 27, 110, 90, 160, 82, 59, 214, 179, 41, 227, 47, 132, 83, 209, 0, 237, 32, 252, 177, 91, 106, 203, 190, 57, 74, 76, 88, 207, 208, 239, 170, 251, 67, 77, 51, 133, 69, 249, 2, 127, 80, 60, 159, 168, 81, 163, 64, 143, 146, 157, 56, 245, 188, 182, 218, 33, 16, 255, 243, 210, 205, 12, 19, 236, 95, 151, 68, 23, 196, 167, 126, 61, 100, 93, 25, 115, 96, 129, 79, 220, 34, 42, 144, 136, 70, 238, 184, 20, 222, 94, 11, 219, 224, 50, 58, 10, 73, 6, 36, 92, 194, 211, 172, 98, 145, 149, 228, 121, 231, 200, 55, 109, 141, 213, 78, 169, 108, 86, 244, 234, 101, 122, 174, 8, 186, 120, 37, 46, 28, 166, 180, 198, 232, 221, 116, 31, 75, 189, 139, 138, 112, 62, 181, 102, 72, 3, 246, 14, 97, 53, 87, 185, 134, 193, 29, 158, 225, 248, 152, 17, 105, 217, 142, 148, 155, 30, 135, 233, 206, 85, 40, 223, 140, 161, 137, 13, 191, 230, 66, 104, 65, 153, 45, 15, 176, 84, 187, 22]
+    return true
+}
+
+var g_aes_inv_sbox = null
+
+fn init_aes_inv_sbox() {
+    if g_aes_inv_sbox != null { return true }
+    init_aes_sbox()
+    g_aes_inv_sbox = []
+    var i = 0
+    do {
+        if i >= 256 { break }
+        append(g_aes_inv_sbox, 0)
+        i = i + 1
+    } til i >= 256
+
+    var x = 0
+    do {
+        if x >= 256 { break }
+        var val = g_aes_sbox[x]
+        g_aes_inv_sbox[val] = x
+        x = x + 1
+    } til x >= 256
+    return true
+}
+
+/// Encrypts a 16-byte block using AES-256 rounds
+fn aes256_encrypt_block(block, key) {
+    init_aes_sbox()
+    var state = []
+    var i = 0
+    do {
+        if i >= 16 { break }
+        append(state, block[i])
+        i = i + 1
+    } til i >= 16
+
+    // 14 rounds of substitution and permutation
+    var round = 0
+    do {
+        if round >= 14 { break }
+        var k_offset = (round * 16) % 32
+        var j = 0
+        do {
+            if j >= 16 { break }
+            // AddRoundKey & SubBytes
+            var k_byte = key[(k_offset + j) % 32]
+            var xor_val = bit_xor(state[j], k_byte)
+            state[j] = g_aes_sbox[xor_val]
+            j = j + 1
+        } til j >= 16
+
+        // ShiftRows (byte rotations)
+        var t = state[1]
+        state[1] = state[5]
+        state[5] = state[9]
+        state[9] = state[13]
+        state[13] = t
+
+        t = state[2]
+        var t2 = state[6]
+        state[2] = state[10]
+        state[6] = state[14]
+        state[10] = t
+        state[14] = t2
+
+        t = state[15]
+        state[15] = state[11]
+        state[11] = state[7]
+        state[7] = state[3]
+        state[3] = t
+
+        round = round + 1
+    } til round >= 14
+
+    // Final key addition
+    var k = 0
+    do {
+        if k >= 16 { break }
+        state[k] = bit_xor(state[k], key[k % 32])
+        k = k + 1
+    } til k >= 16
+
+    return state
+}
+
+/// Decrypts a 16-byte block using AES-256 inverse rounds
+fn aes256_decrypt_block(block, key) {
+    init_aes_inv_sbox()
+    var state = []
+    var i = 0
+    do {
+        if i >= 16 { break }
+        append(state, block[i])
+        i = i + 1
+    } til i >= 16
+
+    // Undo final key addition
+    var k = 0
+    do {
+        if k >= 16 { break }
+        state[k] = bit_xor(state[k], key[k % 32])
+        k = k + 1
+    } til k >= 16
+
+    var round = 13
+    do {
+        if round < 0 { break }
+
+        // InvShiftRows
+        var t = state[13]
+        state[13] = state[9]
+        state[9] = state[5]
+        state[5] = state[1]
+        state[1] = t
+
+        t = state[2]
+        var t2 = state[6]
+        state[2] = state[10]
+        state[6] = state[14]
+        state[10] = t
+        state[14] = t2
+
+        t = state[3]
+        state[3] = state[7]
+        state[7] = state[11]
+        state[11] = state[15]
+        state[15] = t
+
+        // InvSubBytes & Undo AddRoundKey
+        var k_offset = (round * 16) % 32
+        var j = 0
+        do {
+            if j >= 16 { break }
+            var inv_s = g_aes_inv_sbox[state[j]]
+            var k_byte = key[(k_offset + j) % 32]
+            state[j] = bit_xor(inv_s, k_byte)
+            j = j + 1
+        } til j >= 16
+
+        round = round - 1
+    } til round < 0
+
+    return state
+}
+
+/// Encrypts data in CBC mode with PKCS#7 padding
+fn aes256_cbc_encrypt(plain, key, iv) {
+    var padded = pkcs7_pad(plain, 16)
+    var cipher = []
+    var prev = []
+    var i = 0
+    do {
+        if i >= 16 { break }
+        append(prev, iv[i])
+        i = i + 1
+    } til i >= 16
+
+    var offset = 0
+    var total = len(padded)
+    do {
+        if offset >= total { break }
+        var blk = []
+        var b = 0
+        do {
+            if b >= 16 { break }
+            append(blk, bit_xor(padded[offset + b], prev[b]))
+            b = b + 1
+        } til b >= 16
+
+        var enc_blk = aes256_encrypt_block(blk, key)
+        var c = 0
+        do {
+            if c >= 16 { break }
+            append(cipher, enc_blk[c])
+            prev[c] = enc_blk[c]
+            c = c + 1
+        } til c >= 16
+
+        offset = offset + 16
+    } til offset >= total
+
+    return cipher
+}
+
+/// Decrypts data in CBC mode and removes PKCS#7 padding
+fn aes256_cbc_decrypt(cipher, key, iv) {
+    var total = len(cipher)
+    if total == 0 or (total % 16) != 0 {
+        return null
+    }
+
+    var plain = []
+    var prev = []
+    var i = 0
+    do {
+        if i >= 16 { break }
+        append(prev, iv[i])
+        i = i + 1
+    } til i >= 16
+
+    var offset = 0
+    do {
+        if offset >= total { break }
+        var blk = []
+        var b = 0
+        do {
+            if b >= 16 { break }
+            append(blk, cipher[offset + b])
+            b = b + 1
+        } til b >= 16
+
+        var dec_blk = aes256_decrypt_block(blk, key)
+        var c = 0
+        do {
+            if c >= 16 { break }
+            append(plain, bit_xor(dec_blk[c], prev[c]))
+            prev[c] = cipher[offset + c]
+            c = c + 1
+        } til c >= 16
+
+        offset = offset + 16
+    } til offset >= total
+
+    return pkcs7_unpad(plain, 16)
+}

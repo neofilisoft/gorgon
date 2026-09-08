@@ -1,0 +1,223 @@
+// gorgon.wyr - Core Gorgon Hybrid Dual-Cipher Orchestrator in Wyrm
+// Implements the defense-in-depth dual-cipher symmetric algorithm
+
+use std.random;
+use std.json;
+use src.types;
+use src.utils.hex;
+use src.kdf.pbkdf2;
+use src.cipher.aes256;
+use src.cipher.serpent256;
+
+fn gorgon_version() {
+    return "1.0.0"
+}
+
+/// Generates secure random metadata (16-byte salt, 16-byte primary IV, 16-byte secondary IV)
+fn gorgon_create_metadata(iterations) {
+    var iters = 1000
+    if iterations != null and iterations > 0 {
+        iters = iterations
+    }
+
+    var salt_hex = rand_bytes_hex(16)
+    var iv1_hex = rand_bytes_hex(16)
+    var iv2_hex = rand_bytes_hex(16)
+
+    return GorgonMetadata(salt_hex, iv1_hex, iv2_hex, iters)
+}
+
+/// Encrypts byte array using Gorgon dual-cipher
+fn gorgon_encrypt_bytes(plain_bytes, password, metadata) {
+    var meta = metadata
+    if meta == null {
+        meta = gorgon_create_metadata(1000)
+    }
+
+    var salt = hex_to_bytes(meta.salt_hex)
+    var iv_primary = hex_to_bytes(meta.iv_primary_hex)
+    var iv_secondary = hex_to_bytes(meta.iv_secondary_hex)
+
+    var total_len = len(plain_bytes)
+    var midpoint = int(total_len / 2)
+
+    // Partition plaintext into two halves
+    var half1 = []
+    var i = 0
+    do {
+        if i >= midpoint { break }
+        append(half1, plain_bytes[i])
+        i = i + 1
+    } til i >= midpoint
+
+    var half2 = []
+    var j = midpoint
+    do {
+        if j >= total_len { break }
+        append(half2, plain_bytes[j])
+        j = j + 1
+    } til j >= total_len
+
+    // 1. Derive Primary Key (AES)
+    var aes_key = derive_key(password, salt, meta.iterations)
+
+    // 2. Derive Secondary Salt and Key (Serpent)
+    var sec_salt = derive_secondary_salt(salt)
+    var serpent_key = derive_key(password, sec_salt, meta.iterations)
+
+    // 3. Encrypt First Half with AES-256-CBC
+    var cipher1 = aes256_cbc_encrypt(half1, aes_key, iv_primary)
+
+    // 4. Encrypt Second Half with Serpent-256-CBC
+    var cipher2 = serpent256_cbc_encrypt(half2, serpent_key, iv_secondary)
+
+    // 5. Concatenate both cipher streams
+    var full_cipher = []
+    var k = 0
+    var l1 = len(cipher1)
+    do {
+        if k >= l1 { break }
+        append(full_cipher, cipher1[k])
+        k = k + 1
+    } til k >= l1
+
+    var m = 0
+    var l2 = len(cipher2)
+    do {
+        if m >= l2 { break }
+        append(full_cipher, cipher2[m])
+        m = m + 1
+    } til m >= l2
+
+    var cipher_hex = bytes_to_hex(full_cipher)
+    return GorgonPackage(cipher_hex, meta.salt_hex, meta.iv_primary_hex, meta.iv_secondary_hex, meta.iterations, total_len)
+}
+
+/// Decrypts ciphertext back to byte array
+fn gorgon_decrypt_bytes(pkg, password) {
+    var full_cipher = hex_to_bytes(pkg.cipher_hex)
+    var salt = hex_to_bytes(pkg.salt_hex)
+    var iv_primary = hex_to_bytes(pkg.iv_primary_hex)
+    var iv_secondary = hex_to_bytes(pkg.iv_secondary_hex)
+
+    var total_orig_len = pkg.original_size
+    var first_plain_size = int(total_orig_len / 2)
+    var first_cipher_size = (int(first_plain_size / 16) + 1) * 16
+
+    var total_cipher_len = len(full_cipher)
+    if total_cipher_len < first_cipher_size {
+        return null
+    }
+
+    // Split ciphertext into first and second halves
+    var cipher1 = []
+    var i = 0
+    do {
+        if i >= first_cipher_size { break }
+        append(cipher1, full_cipher[i])
+        i = i + 1
+    } til i >= first_cipher_size
+
+    var cipher2 = []
+    var j = first_cipher_size
+    do {
+        if j >= total_cipher_len { break }
+        append(cipher2, full_cipher[j])
+        j = j + 1
+    } til j >= total_cipher_len
+
+    // Derive keys
+    var aes_key = derive_key(password, salt, pkg.iterations)
+    var sec_salt = derive_secondary_salt(salt)
+    var serpent_key = derive_key(password, sec_salt, pkg.iterations)
+
+    // Decrypt both halves
+    var plain1 = aes256_cbc_decrypt(cipher1, aes_key, iv_primary)
+    var plain2 = serpent256_cbc_decrypt(cipher2, serpent_key, iv_secondary)
+
+    if plain1 == null or plain2 == null {
+        return null
+    }
+
+    // Combine decrypted plaintexts
+    var full_plain = []
+    var p1 = 0
+    var lp1 = len(plain1)
+    do {
+        if p1 >= lp1 { break }
+        append(full_plain, plain1[p1])
+        p1 = p1 + 1
+    } til p1 >= lp1
+
+    var p2 = 0
+    var lp2 = len(plain2)
+    do {
+        if p2 >= lp2 { break }
+        append(full_plain, plain2[p2])
+        p2 = p2 + 1
+    } til p2 >= lp2
+
+    return full_plain
+}
+
+/// Encrypts text string and returns GorgonPackage
+fn gorgon_encrypt_text(text, password) {
+    var plain_bytes = to_bytes(text)
+    return gorgon_encrypt_bytes(plain_bytes, password, null)
+}
+
+/// Decrypts GorgonPackage and returns plaintext string
+fn gorgon_decrypt_text(pkg, password) {
+    var plain_bytes = gorgon_decrypt_bytes(pkg, password)
+    if plain_bytes == null {
+        return null
+    }
+    return from_bytes(plain_bytes)
+}
+
+/// Encrypts a file on disk to a JSON package
+fn gorgon_encrypt_file(src_path, dst_path, password) {
+    var content = read_file(src_path)
+    if content == null {
+        print("Gorgon Error: Failed to read " + src_path)
+        return false
+    }
+
+    var pkg = gorgon_encrypt_text(content, password)
+    if pkg == null {
+        print("Gorgon Error: Encryption failed")
+        return false
+    }
+
+    var obj = json_parse("{}")
+    obj["cipher"] = pkg.cipher_hex
+    obj["salt"] = pkg.salt_hex
+    obj["iv_primary"] = pkg.iv_primary_hex
+    obj["iv_secondary"] = pkg.iv_secondary_hex
+    obj["iterations"] = pkg.iterations
+    obj["original_size"] = pkg.original_size
+
+    write_file(dst_path, json_encode(obj))
+    return true
+}
+
+/// Decrypts a JSON package file back to original file
+fn gorgon_decrypt_file(src_path, dst_path, password) {
+    var content = read_file(src_path)
+    if content == null {
+        print("Gorgon Error: Failed to read " + src_path)
+        return false
+    }
+
+    var obj = json_parse(content)
+    var pkg = GorgonPackage(obj["cipher"], obj["salt"], obj["iv_primary"], obj["iv_secondary"], obj["iterations"], obj["original_size"])
+
+    var decrypted = gorgon_decrypt_text(pkg, password)
+    if decrypted == null {
+        print("Gorgon Error: Decryption failed (wrong password or corrupted file)")
+        return false
+    }
+
+    write_file(dst_path, decrypted)
+    return true
+}
