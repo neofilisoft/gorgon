@@ -1,4 +1,4 @@
-# Gorgon - Hybrid Dual-Cipher Encryption Library
+# Gorgon - Dual-Cipher Encryption Library
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-333333.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.0.0-B10C1A)](https://github.com/winzox/gorgon/releases)
