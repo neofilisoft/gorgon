@@ -1,0 +1,50 @@
+// example.wyr - Pure Wyrm demonstration of the Gorgon encryption library
+
+use src.gorgon;
+
+fn main() {
+    print("=== Pure Wyrm Gorgon Encryption Library ===")
+    print("Library Version:", gorgon_version())
+
+    var secret = "Pure Wyrm systems language with defense-in-depth Gorgon dual-cipher!"
+    var password = "WyrmMasterKey2026"
+
+    print("\nOriginal text:", secret)
+    print("Password:", password)
+
+    // 1. Encrypt
+    print("\n[1] Encrypting with Gorgon (AES-256 + Serpent-256)...")
+    var pkg = gorgon_encrypt_text(secret, password)
+    if pkg == null {
+        print("Error: Encryption failed!")
+        return
+    }
+
+    print("    Ciphertext length:", len(pkg.cipher_hex), "hex chars")
+    print("    Salt (hex):", pkg.salt_hex)
+    print("    Primary IV (hex):", pkg.iv_primary_hex)
+    print("    Secondary IV (hex):", pkg.iv_secondary_hex)
+    print("    PBKDF2 Iterations:", pkg.iterations)
+    print("    Original size:", pkg.original_size, "bytes")
+
+    // 2. Decrypt
+    print("\n[2] Decrypting back to plaintext...")
+    var decrypted = gorgon_decrypt_text(pkg, password)
+    print("    Decrypted text:", decrypted)
+
+    // 3. Verify
+    if decrypted == secret {
+        print("\n[PASS] Pure Wyrm Gorgon encryption and decryption verified 100% successfully!")
+    } else {
+        print("\n[FAIL] Plaintext mismatch!")
+    }
+
+    // 4. Wrong password test
+    print("\n[3] Testing authentication with wrong password...")
+    var wrong_attempt = gorgon_decrypt_text(pkg, "WrongPasswordHere")
+    if wrong_attempt == null {
+        print("    [PASS] Correctly rejected invalid password (returned null)!")
+    } else {
+        print("    [WARN] Did not reject wrong password!")
+    }
+}

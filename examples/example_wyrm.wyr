@@ -1,0 +1,48 @@
+// example_wyrm.wyr - Wyrm language demonstration calling Gorgon library
+
+use src.gorgon;
+
+fn main() {
+    print("=== Gorgon Wyrm Integration Demonstration ===")
+    
+    // Initialize library
+    var ok = gorgon_init("gorgon.dll")
+    if not ok {
+        print("Initialization failed.")
+        return
+    }
+
+    print("Gorgon Native Library Version:", gorgon_version())
+
+    var secret = "Wyrm native systems programming with Gorgon dual-cipher!"
+    var password = "WyrmPasscode2026"
+
+    print("\nOriginal text:", secret)
+    print("Password:", password)
+
+    // Encrypt
+    print("\nEncrypting with Gorgon...")
+    var pkg = gorgon_encrypt_text(secret, password)
+    if pkg == null {
+        print("Encryption failed!")
+        return
+    }
+
+    print("Ciphertext (hex, truncated):", char_at(pkg.cipher_hex, 0) + "... [" + str(len(pkg.cipher_hex)) + " hex chars]")
+    print("Salt (hex):", pkg.salt_hex)
+    print("Primary IV (hex):", pkg.iv_primary_hex)
+    print("Secondary IV (hex):", pkg.iv_secondary_hex)
+    print("PBKDF2 Iterations:", pkg.iterations)
+    print("Original size:", pkg.original_size)
+
+    // Decrypt
+    print("\nDecrypting back with Gorgon...")
+    var decrypted = gorgon_decrypt_text(pkg, password)
+    print("Decrypted text:", decrypted)
+
+    if decrypted == secret {
+        print("\n[PASS] Wyrm Gorgon round-trip encryption & decryption verified successfully!")
+    } else {
+        print("\n[FAIL] Mismatch between original and decrypted text!")
+    }
+}

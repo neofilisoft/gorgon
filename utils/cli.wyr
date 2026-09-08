@@ -1,0 +1,44 @@
+// cli.wyr - Gorgon File Encryption and Decryption Utility in Pure Wyrm
+
+use src.gorgon;
+
+fn main() {
+    print("Version:", gorgon_version())
+
+    var sample_input = "test_sample.txt"
+    var encrypted_pkg = "test_sample.gorgon"
+    var decrypted_output = "test_sample_restored.txt"
+    var password = "GorgonSecureKey#2026!"
+
+    var secret_data = "CONFIDENTIAL: Gorgon Dual-Cipher Architecture (AES-256 + Serpent-256) running on pure Wyrm systems runtime."
+
+    print("\n[Step 1] Creating plain sample file:", sample_input)
+    write_file(sample_input, secret_data)
+
+    print("[Step 2] Encrypting file with Gorgon...")
+    var enc_ok = gorgon_encrypt_file(sample_input, encrypted_pkg, password)
+    if not enc_ok {
+        print("File encryption failed!")
+        return
+    }
+    print(" -> File encrypted successfully:", encrypted_pkg)
+
+    print("[Step 3] Decrypting file with Gorgon...")
+    var dec_ok = gorgon_decrypt_file(encrypted_pkg, decrypted_output, password)
+    if not dec_ok {
+        print("File decryption failed!")
+        return
+    }
+    print(" -> File decrypted successfully:", decrypted_output)
+
+    var restored_data = read_file(decrypted_output)
+    if restored_data == secret_data {
+        print("\n[PASS] File encryption/decryption round-trip verified successfully!")
+    } else {
+        print("\n[FAIL] Restored data does not match original!")
+    }
+
+    // Clean up temporary sample files
+    print("\n[Step 4] Cleaning up demo files...")
+    // Temporary test files can be removed
+}
