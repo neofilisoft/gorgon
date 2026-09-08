@@ -1,0 +1,9 @@
+[package]
+name = "gorgon"
+version = "1.0.0"
+description = "High-security hybrid dual-cipher encryption library combining AES-256 and Serpent-256"
+entry = "src/gorgon.wyr"
+license = "MIT"
+authors = ["Gorgon Project Contributors"]
+
+[dependencies]
