@@ -145,7 +145,3 @@ gorgon-tool dec document.pdf.gorgon restored_document.pdf "MasterPassphrase"
 For in-depth mathematical proofs, state transformations, and security bounds, see [doc/ALGORITHM.md](doc/ALGORITHM.md).
 
 ---
-
-## 6. License
-
-Licensed under the [MIT License](LICENSE).
